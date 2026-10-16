@@ -80,7 +80,7 @@
     <button class="go" id="go">Start</button>
     <div class="how" id="how">
       <div class="step"><b>1</b><div>Cover the <strong>main (biggest) back lens</strong> fully with your fingertip, close to the flash.</div></div>
-      <div class="step"><b>2</b><div>Hold still and press lightly for <strong>15 seconds</strong>.</div></div>
+      <div class="step"><b>2</b><div>Best: lay the phone <strong>face-down on a table</strong>, rest your fingertip lightly on the lens and stay still for <strong>15 seconds</strong>.</div></div>
       <div class="step"><b>3</b><div>Sit calmly first. Resting is usually <strong>60 to 100</strong>.</div></div>
     </div>
   </section>
@@ -161,7 +161,7 @@ function readFrame() {
   return { r: r / n, g: g / n, b: b / n };
 }
 // finger on the lens: bright and clearly red. Real Pixel 10 reading with the flash: r 185, g 125, b 105.
-const isFinger = c => c.r > (torch ? 80 : 30) && c.r > c.g * 1.18 && c.r > c.b * 1.2;
+const isFinger = c => c.r > (torch ? 80 : 30) && c.r > c.g * 1.15 && c.r > c.b * 1.15;
 let missingSince = null;
 
 function onSample(t, c) {
@@ -195,7 +195,8 @@ function analyse() {
   if (e) last = e;
   const now = e ? e.tEnd : 0;
   // a real fingertip pulse is 0.1-2.5% of the brightness; a table or a sleeve shows ~0.04% (just sensor noise)
-  const real = e && e.quality >= 0.15 && e.pi >= 0.12 && e.pi <= 2.5 && e.bpm >= 45;   // under 45 is almost always hand motion
+  // a light touch gives a weak (0.05%) but very clean pulse, so allow it when the rhythm is strong
+  const real = e && e.bpm >= 45 && e.pi <= 2.5 && ((e.quality >= 0.15 && e.pi >= 0.12) || (e.quality >= 0.4 && e.pi >= 0.04));   // under 45 is almost always hand motion
   if (real) recent.push({ bpm: e.bpm, q: e.quality, t: now });
   recent = recent.filter(x => now - x.t < 8);
   if (recent.length >= 5) shownBpm = Math.round(wmedian(recent));
