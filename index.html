@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pulse Check</title>
+<meta name="description" content="Check your pulse with just your phone camera. Built with Claude by Raj Tries.">
+<meta name="theme-color" content="#ffffff">
+<meta property="og:title" content="Pulse Check">
+<meta property="og:description" content="Check your pulse with just your phone camera. Built with Claude by Raj Tries.">
+<meta property="og:image" content="https://rajmans123-netizen.github.io/pulse-check/preview.jpg">
+<meta property="og:url" content="https://rajmans123-netizen.github.io/pulse-check/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #F6F4F2; --card: #FFFFFF; --ink: #1A1717; --soft: #6E6866; --line: #ECE7E4;
+    --red: #E5383B; --red-soft: #FDECEC; --ok: #1F9D55; --warn: #D97706;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 18px 16px 40px; }
+  header { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+  header .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--red);
+    display: grid; place-items: center; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: -0.3px; }
+  header p { margin: 0; color: var(--soft); font-size: 13px; }
+  .card { background: var(--card); border-radius: 24px; padding: 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05); }
+  .read { text-align: center; position: relative; }
+  .heart { width: 56px; height: 56px; margin: 4px auto 0; transition: transform .12s ease-out; }
+  .heart.beat { transform: scale(1.22); }
+  .bpm { font-size: 96px; font-weight: 800; letter-spacing: -4px; line-height: 1; margin: 6px 0 0;
+    font-variant-numeric: tabular-nums; }
+  .bpm.dim { color: #D6D0CD; }
+  .unit { font-size: 15px; font-weight: 700; color: var(--soft); letter-spacing: 2px; margin-top: 2px; }
+  .status { margin: 12px 0 0; min-height: 22px; font-weight: 600; color: var(--soft); }
+  .range { display: inline-block; margin-top: 10px; padding: 6px 12px; border-radius: 99px;
+    font-size: 13px; font-weight: 700; visibility: hidden; }
+  .range.show { visibility: visible; }
+  .range.ok { background: #E7F6EE; color: var(--ok); }
+  .range.hi, .range.lo { background: #FEF3E2; color: var(--warn); }
+  canvas#wave { width: 100%; height: 110px; display: block; margin-top: 14px;
+    border-radius: 14px; background: var(--red-soft); }
+  .bar { height: 6px; border-radius: 6px; background: var(--line); margin-top: 14px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .2s linear; }
+  button.go { width: 100%; margin-top: 16px; border: 0; border-radius: 16px; padding: 16px;
+    font-size: 17px; font-weight: 700; color: #fff; background: var(--red); cursor: pointer; }
+  button.go.stop { background: var(--ink); }
+  .how { margin-top: 14px; display: grid; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--soft); }
+  .step b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--red-soft);
+    color: var(--red); display: grid; place-items: center; font-size: 13px; }
+  h2 { font-size: 15px; margin: 22px 4px 10px; }
+  .hist { display: grid; gap: 8px; }
+  .hist div { display: flex; justify-content: space-between; background: var(--card);
+    border-radius: 14px; padding: 12px 14px; font-size: 14px; }
+  .hist span { color: var(--soft); }
+  .empty { color: var(--soft); font-size: 14px; padding: 0 4px; }
+  footer { margin-top: 24px; color: var(--soft); font-size: 12px; text-align: center; line-height: 1.6; }
+  video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 2.9 4.5 6.6 4.5c2.1 0 3.6 1.2 4.4 2.6.8-1.4 2.3-2.6 4.4-2.6 3.7 0 5.7 4 4.2 7.3C19.5 16.4 12 21 12 21z"/></svg></div>
+    <div><h1>Pulse Check</h1><p>Your phone camera is a pulse meter</p></div>
+  </header>
+
+  <section class="card read">
+    <svg class="heart" id="heart" viewBox="0 0 24 24" fill="#E5383B"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 2.9 4.5 6.6 4.5c2.1 0 3.6 1.2 4.4 2.6.8-1.4 2.3-2.6 4.4-2.6 3.7 0 5.7 4 4.2 7.3C19.5 16.4 12 21 12 21z"/></svg>
+    <div class="bpm dim" id="bpm">--</div>
+    <div class="unit">BPM</div>
+    <div class="range" id="range">Normal resting range</div>
+    <div class="status" id="status">Tap start, then cover the back camera</div>
+    <canvas id="wave"></canvas>
+    <div class="bar"><i id="prog"></i></div>
+    <button class="go" id="go">Start</button>
+    <div class="how" id="how">
+      <div class="step"><b>1</b><div>Gently cover the <strong>back camera and flash</strong> with one fingertip.</div></div>
+      <div class="step"><b>2</b><div>Hold still and press lightly for <strong>15 seconds</strong>.</div></div>
+      <div class="step"><b>3</b><div>Sit calmly first. Resting is usually <strong>60 to 100</strong>.</div></div>
+    </div>
+  </section>
+
+  <h2>Your checks</h2>
+  <div class="hist" id="hist"></div>
+
+  <footer>Reads pulse, not oxygen. Not a medical device.<br>
+    If your resting pulse stays above 100, check with a doctor.<br>
+    Built with Claude · Raj Tries</footer>
+  <video id="video" playsinline muted></video>
+</main>
+
+<script src="pulse.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const video = $('video'), wave = $('wave'), wx = wave.getContext('2d');
+const grab = document.createElement('canvas'); grab.width = 40; grab.height = 30;
+const gx = grab.getContext('2d', { willReadFrequently: true });
+const A = new Pulse.Analyzer();
+const MEASURE = 15;                       // seconds of good signal for a saved result
+const params = new URLSearchParams(location.search);
+const DEMO = params.has('demo');
+
+let running = false, stream = null, track = null, torch = false;
+let fingerSince = null, good = 0, lastT = null, saved = false;
+let last = null, recent = [], shownBpm = null, lastBeatT = 0, loopId = 0;
+
+// ---------- history ----------
+const HK = 'pulsecheck_history';
+function loadHist() { try { return JSON.parse(localStorage.getItem(HK) || '[]'); } catch (e) { return []; } }
+function saveHist(bpm) {
+  const h = loadHist(); h.unshift({ bpm, t: Date.now() });
+  try { localStorage.setItem(HK, JSON.stringify(h.slice(0, 20))); } catch (e) {}
+  showHist();
+}
+function showHist() {
+  const h = loadHist(), el = $('hist');
+  if (!h.length) { el.innerHTML = '<div class="empty">Your saved readings will show up here.</div>'; return; }
+  el.innerHTML = h.slice(0, 8).map(x => {
+    const d = new Date(x.t);
+    const when = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' +
+                 d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `<div><strong>${x.bpm} BPM</strong><span>${when}</span></div>`;
+  }).join('');
+}
+
+// ---------- camera ----------
+const VIDEO = { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30 } };
+const hasTorch = t => !!(t && t.getCapabilities && t.getCapabilities().torch);
+async function openCamera() {
+  let s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...VIDEO } });
+  let t = s.getVideoTracks()[0];
+  if (!hasTorch(t)) {                     // some phones open a back lens without the flash
+    const first = t.getSettings().deviceId;
+    const devs = (await navigator.mediaDevices.enumerateDevices())
+      .filter(d => d.kind === 'videoinput' && d.deviceId !== first && /back|rear|environment/i.test(d.label));
+    for (const d of devs) {
+      s.getTracks().forEach(x => x.stop());
+      const s2 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId }, ...VIDEO } }).catch(() => null);
+      if (s2 && hasTorch(s2.getVideoTracks()[0])) { s = s2; t = s2.getVideoTracks()[0]; break; }
+      if (s2) s2.getTracks().forEach(x => x.stop());
+      s = null;
+    }
+    if (!s) { s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...VIDEO } }); t = s.getVideoTracks()[0]; }
+  }
+  let lit = false;
+  if (hasTorch(t)) { try { await t.applyConstraints({ advanced: [{ torch: true }] }); lit = true; } catch (e) {} }
+  return { s, t, lit };
+}
+
+// ---------- sampling ----------
+function readFrame() {
+  gx.drawImage(video, 0, 0, 40, 30);
+  const d = gx.getImageData(0, 0, 40, 30).data, n = d.length / 4;
+  let r = 0, g = 0, b = 0;
+  for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+  return { r: r / n, g: g / n, b: b / n };
+}
+const isFinger = c => c.r > (torch ? 60 : 30) && c.r > c.g * 1.25 && c.r > c.b * 1.25;
+
+function onSample(t, c) {
+  if (!isFinger(c)) {
+    if (fingerSince !== null) resetReading();
+    setStatus(running ? 'Cover the back camera and flash with your fingertip' : '');
+    lastT = t; return;
+  }
+  if (fingerSince === null) { fingerSince = t; A.reset(); }
+  A.push(t, c.r, c.g);
+  if (lastT !== null && t - fingerSince > 1.5) good += Math.min(0.2, t - lastT);
+  lastT = t;
+}
+
+function resetReading() {
+  fingerSince = null; good = 0; saved = false; recent = []; shownBpm = null; last = null;
+  A.reset(); render();
+}
+
+// ---------- analysis + display ----------
+function median(a) { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; }
+function analyse() {
+  if (fingerSince === null) return;
+  const e = A.analyze(8);
+  if (e) last = e;
+  if (e && e.quality > 0.45) { recent.push(e.bpm); if (recent.length > 8) recent.shift(); }
+  if (recent.length >= 3) shownBpm = Math.round(median(recent));
+  if (e && e.quality > 0.45 && e.beats.length) {   // flash the heart on each new dip
+    const bt = e.tEnd - (e.wave.length - 1 - e.beats[e.beats.length - 1]) / e.fs;
+    if (bt > lastBeatT + 0.4 * 60 / e.bpm) { lastBeatT = bt; beat(); }
+  }
+  const p = Math.min(1, good / MEASURE);
+  if (p >= 1 && !saved && shownBpm) { saved = true; saveHist(shownBpm); }
+  if (shownBpm === null) setStatus(good < 3 ? 'Finger found. Hold still…' : 'Reading your pulse…');
+  else if (!saved) setStatus(`Hold still… ${Math.max(1, Math.ceil(MEASURE - good))}s`);
+  else setStatus('Saved ✓  Keep holding for a live reading');
+  render();
+}
+
+function beat() { const h = $('heart'); h.classList.add('beat'); setTimeout(() => h.classList.remove('beat'), 160); }
+function setStatus(s) { $('status').textContent = s; }
+
+function render() {
+  const el = $('bpm'), rg = $('range');
+  el.textContent = shownBpm === null ? '--' : shownBpm;
+  el.classList.toggle('dim', shownBpm === null);
+  $('prog').style.width = (fingerSince === null ? 0 : Math.min(100, good / MEASURE * 100)) + '%';
+  rg.className = 'range';
+  if (shownBpm !== null) {
+    rg.classList.add('show');
+    if (shownBpm > 100) { rg.classList.add('hi'); rg.textContent = 'Above 100 · normal after exercise'; }
+    else if (shownBpm < 60) { rg.classList.add('lo'); rg.textContent = 'Below 60 · common if you are fit'; }
+    else { rg.classList.add('ok'); rg.textContent = 'Normal resting range'; }
+  }
+  drawWave();
+}
+
+function drawWave() {
+  const dpr = devicePixelRatio || 1, W = wave.clientWidth * dpr, H = wave.clientHeight * dpr;
+  if (wave.width !== W || wave.height !== H) { wave.width = W; wave.height = H; }
+  wx.clearRect(0, 0, W, H);
+  if (!last) return;
+  const n = Math.min(last.wave.length, 5 * last.fs), off = last.wave.length - n, w = last.wave;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = off; i < w.length; i++) { lo = Math.min(lo, w[i]); hi = Math.max(hi, w[i]); }
+  const pad = 14 * dpr, y = v => H - pad - (v - lo) / ((hi - lo) || 1) * (H - 2 * pad), x = i => (i - off) / (n - 1) * W;
+  wx.lineWidth = 3 * dpr; wx.lineJoin = 'round'; wx.strokeStyle = '#E5383B';
+  wx.beginPath();
+  for (let i = off; i < w.length; i++) i === off ? wx.moveTo(x(i), y(w[i])) : wx.lineTo(x(i), y(w[i]));
+  wx.stroke();
+  wx.fillStyle = '#E5383B';
+  for (const b of last.beats) if (b >= off) { wx.beginPath(); wx.arc(x(b), y(w[b]), 4.5 * dpr, 0, 7); wx.fill(); }
+}
+
+// ---------- loop ----------
+function frameLoop() {
+  const id = loopId;
+  const step = (now, meta) => {
+    if (!running || id !== loopId) return;
+    const t = (meta && meta.mediaTime > 0 ? meta.mediaTime : now / 1000);
+    onSample(t, readFrame());
+    video.requestVideoFrameCallback ? video.requestVideoFrameCallback(step) : requestAnimationFrame(n => step(n));
+  };
+  video.requestVideoFrameCallback ? video.requestVideoFrameCallback(step) : requestAnimationFrame(n => step(n));
+}
+
+function demoLoop() {          // ?demo=74 or ?demo=74-128 (ramps up after 20 s)
+  const [a, b] = (params.get('demo') || '74').split('-').map(Number);
+  const target = t => (b && t > 20) ? a + (b - a) * Math.min(1, (t - 20) / 4) : (a || 74);
+  const gen = Pulse.synth(target, { noise: 0.5, seed: 7 }), t0 = performance.now(), id = loopId;
+  torch = true;
+  const tick = () => {
+    if (!running || id !== loopId) return;
+    const t = (performance.now() - t0) / 1000, v = gen(t);
+    onSample(t, { r: v.r, g: v.g, b: v.g * 0.6 });
+  };
+  const iv = setInterval(() => { if (!running || id !== loopId) clearInterval(iv); else tick(); }, 1000 / 30);
+}
+
+let wakeLock = null, analyseIv = null;
+async function start() {
+  running = true; loopId++; resetReading();
+  $('go').textContent = 'Stop'; $('go').classList.add('stop'); $('how').style.display = 'none';
+  setStatus('Opening camera…');
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+  analyseIv = setInterval(analyse, 200);
+  if (DEMO) { demoLoop(); return; }
+  try {
+    const cam = await openCamera();
+    stream = cam.s; track = cam.t; torch = cam.lit;
+    video.srcObject = stream; await video.play();
+    setStatus(torch ? 'Cover the back camera and flash with your fingertip'
+                    : 'No flash found. Cover the back camera in bright light');
+    frameLoop();
+  } catch (e) {
+    stop(); setStatus('Camera blocked. Allow camera access and try again.');
+  }
+}
+function stop() {
+  running = false; loopId++; clearInterval(analyseIv);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; track = null;
+  try { wakeLock?.release(); } catch (e) {}
+  $('go').textContent = 'Start'; $('go').classList.remove('stop'); $('how').style.display = '';
+  fingerSince = null; good = 0; setStatus('Tap start, then cover the back camera');
+  $('prog').style.width = '0%';
+}
+$('go').onclick = () => running ? stop() : start();
+document.addEventListener('visibilitychange', () => { if (document.hidden && running && !DEMO) stop(); });
+addEventListener('resize', drawWave);
+showHist(); render();
+if (params.has('auto')) start();
+</script>
+</body>
+</html>
