@@ -160,34 +160,62 @@ function readFrame() {
   for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
   return { r: r / n, g: g / n, b: b / n };
 }
-const isFinger = c => c.r > (torch ? 60 : 30) && c.r > c.g * 1.25 && c.r > c.b * 1.25;
+// finger on the lens: bright and clearly red. Real Pixel 10 reading with the flash: r 185, g 125, b 105.
+const isFinger = c => c.r > (torch ? 80 : 30) && c.r > c.g * 1.18 && c.r > c.b * 1.2;
+let missingSince = null, locked = false;
 
 function onSample(t, c) {
   if (!isFinger(c)) {
-    if (fingerSince !== null) resetReading();
-    setStatus(running ? 'Cover the back camera and flash with your fingertip' : '');
+    // a brief wobble doesn't reset the reading; only a finger lifted for over a second does
+    if (fingerSince !== null) { if (missingSince === null) missingSince = t; else if (t - missingSince > 1.0) resetReading(); }
+    if (fingerSince === null) setStatus(running ? 'Cover the back camera and flash with your fingertip' : '');
     lastT = t; return;
   }
+  missingSince = null;
   if (fingerSince === null) { fingerSince = t; A.reset(); }
+  if (!locked && t - fingerSince > 1.2) lockCamera(true);
   A.push(t, c.r, c.g);
   if (lastT !== null && t - fingerSince > 1.5) good += Math.min(0.2, t - lastT);
   lastT = t;
 }
 
+// stop the camera re-adjusting brightness and colour mid-reading: those jumps swamp the pulse
+async function lockCamera(on) {
+  locked = on;
+  if (!track || !track.getCapabilities) return;
+  const caps = track.getCapabilities(), set = track.getSettings(), c = {};
+  if (on) {
+    if ((caps.exposureMode || []).includes('manual')) { c.exposureMode = 'manual'; if (set.exposureTime) c.exposureTime = set.exposureTime; if (set.iso) c.iso = set.iso; }
+    if ((caps.whiteBalanceMode || []).includes('manual')) { c.whiteBalanceMode = 'manual'; if (set.colorTemperature) c.colorTemperature = set.colorTemperature; }
+  } else {
+    if ((caps.exposureMode || []).includes('continuous')) c.exposureMode = 'continuous';
+    if ((caps.whiteBalanceMode || []).includes('continuous')) c.whiteBalanceMode = 'continuous';
+  }
+  if (torch) c.torch = true;
+  try { await track.applyConstraints({ advanced: [c] }); } catch (e) {}
+}
+
 function resetReading() {
-  fingerSince = null; good = 0; saved = false; recent = []; shownBpm = null; last = null;
+  fingerSince = null; missingSince = null; good = 0; saved = false; recent = []; shownBpm = null; last = null;
+  if (locked) lockCamera(false);
   A.reset(); render();
 }
 
 // ---------- analysis + display ----------
 function median(a) { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; }
+function wmedian(items) {                     // quality-weighted median of recent estimates
+  const s = [...items].sort((x, y) => x.bpm - y.bpm), tot = s.reduce((a, x) => a + x.q, 0);
+  let acc = 0; for (const x of s) { acc += x.q; if (acc >= tot / 2) return x.bpm; } return s[s.length - 1].bpm;
+}
 function analyse() {
   if (fingerSince === null) return;
-  const e = A.analyze(8);
+  const e = A.analyze(10);
   if (e) last = e;
-  if (e && e.quality > 0.45) { recent.push(e.bpm); if (recent.length > 8) recent.shift(); }
-  if (recent.length >= 3) shownBpm = Math.round(median(recent));
-  if (e && e.quality > 0.45 && e.beats.length) {   // flash the heart on each new dip
+  const now = e ? e.tEnd : 0;
+  if (e && e.quality >= 0.15) recent.push({ bpm: e.bpm, q: e.quality, t: now });
+  recent = recent.filter(x => now - x.t < 8);
+  if (recent.length >= 5) shownBpm = Math.round(wmedian(recent));
+  if (e && e.quality >= 0.15 && e.beats.length) {   // flash the heart on each new dip
     const bt = e.tEnd - (e.wave.length - 1 - e.beats[e.beats.length - 1]) / e.fs;
     if (bt > lastBeatT + 0.4 * 60 / e.bpm) { lastBeatT = bt; beat(); }
   }
@@ -284,7 +312,7 @@ function stop() {
   stream = null; track = null;
   try { wakeLock?.release(); } catch (e) {}
   $('go').textContent = 'Start'; $('go').classList.remove('stop'); $('how').style.display = '';
-  fingerSince = null; good = 0; setStatus('Tap start, then cover the back camera');
+  fingerSince = null; good = 0; locked = false; setStatus('Tap start, then cover the back camera');
   $('prog').style.width = '0%';
 }
 $('go').onclick = () => running ? stop() : start();
