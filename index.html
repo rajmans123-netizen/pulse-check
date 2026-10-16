@@ -79,7 +79,7 @@
     <div class="bar"><i id="prog"></i></div>
     <button class="go" id="go">Start</button>
     <div class="how" id="how">
-      <div class="step"><b>1</b><div>Gently cover the <strong>back camera and flash</strong> with one fingertip.</div></div>
+      <div class="step"><b>1</b><div>Cover the <strong>main (biggest) back lens</strong> fully with your fingertip, close to the flash.</div></div>
       <div class="step"><b>2</b><div>Hold still and press lightly for <strong>15 seconds</strong>.</div></div>
       <div class="step"><b>3</b><div>Sit calmly first. Resting is usually <strong>60 to 100</strong>.</div></div>
     </div>
@@ -194,16 +194,19 @@ function analyse() {
   const e = A.analyze(10);
   if (e) last = e;
   const now = e ? e.tEnd : 0;
-  if (e && e.quality >= 0.15) recent.push({ bpm: e.bpm, q: e.quality, t: now });
+  // a real fingertip pulse is 0.1-2.5% of the brightness; a table or a sleeve shows ~0.04% (just sensor noise)
+  const real = e && e.quality >= 0.15 && e.pi >= 0.12 && e.pi <= 2.5 && e.bpm >= 45;   // under 45 is almost always hand motion
+  if (real) recent.push({ bpm: e.bpm, q: e.quality, t: now });
   recent = recent.filter(x => now - x.t < 8);
   if (recent.length >= 5) shownBpm = Math.round(wmedian(recent));
-  if (e && e.quality >= 0.15 && e.beats.length) {   // flash the heart on each new dip
+  else if (recent.length < 2 && saved) shownBpm = null;            // pulse lost: don't keep showing an old number
+  if (real && e.beats.length) {   // flash the heart on each new dip
     const bt = e.tEnd - (e.wave.length - 1 - e.beats[e.beats.length - 1]) / e.fs;
     if (bt > lastBeatT + 0.4 * 60 / e.bpm) { lastBeatT = bt; beat(); }
   }
   const p = Math.min(1, good / MEASURE);
   if (p >= 1 && !saved && shownBpm) { saved = true; saveHist(shownBpm); }
-  if (shownBpm === null) setStatus(good < 3 ? 'Finger found. Hold still…' : 'Reading your pulse…');
+  if (shownBpm === null) setStatus(good < 3 ? 'Finger found. Hold still…' : good > 12 ? 'No pulse yet: cover the big lens fully, press lightly' : 'Reading your pulse…');
   else if (!saved) setStatus(`Hold still… ${Math.max(1, Math.ceil(MEASURE - good))}s`);
   else setStatus('Saved ✓  Keep holding for a live reading');
   render();

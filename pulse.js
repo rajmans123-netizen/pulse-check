@@ -70,7 +70,9 @@
     const core = y.subarray(edge, y.length - edge);
     let s = 0; for (const v of core) s += v * v;
     const sd = Math.sqrt(s / core.length) || 1;
-    return core.map(v => v / sd);
+    const out = core.map(v => v / sd);
+    out.rms = sd;                                                     // pulse-band strength, in brightness units
+    return out;
   }
 
   // spectrum peak in the heart-rate band, refined by interpolation; quality = peak vs typical level
@@ -135,15 +137,15 @@
     for (const [name, v] of [['red', this.r], ['green', this.g]]) {
       let mean = 0; for (const x of v) mean += x; mean /= v.length;
       if (mean > 252 || mean < 3) continue;          // clipped or black: no signal there
-      const x = clean(resample(T, v, tEnd, dur)), p = spectrumPeak(x);
+      const x = clean(resample(T, v, tEnd, dur)), p = spectrumPeak(x), pi = 100 * x.rms / mean;   // % of brightness
       if (p.atEdge) continue;
       const ac = acAt(x, p.bpm);
       const quality = Math.max(0, Math.min(1, (p.snr - 2) / 6)) * Math.max(0, ac);   // both must agree
-      if (!best || quality > best.quality) best = { channel: name, x, bpm: p.bpm, snr: p.snr, ac, quality };
+      if (!best || quality > best.quality) best = { channel: name, x, bpm: p.bpm, snr: p.snr, ac, quality, pi };
     }
     if (!best) return null;
     const wave = best.x.map(v => -v);
-    return { bpm: best.bpm, quality: best.quality, snr: best.snr, ac: best.ac, channel: best.channel, wave,
+    return { bpm: best.bpm, quality: best.quality, snr: best.snr, ac: best.ac, pi: best.pi, channel: best.channel, wave,
              beats: beats(wave, best.bpm), tEnd: tEnd - 0.6, fs: FS };
   };
 
