@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Selfie Prompter</title>
+<style>
+  :root { --ink: #ffffff; --soft: rgba(255,255,255,.72); --band: rgba(0,0,0,.58); --yel: #F8E878; --red: #E5383B; --ok: #3ddc84; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--ink); overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); background: #111; }
+  /* the line sits right under the front lens, so your eyes stay on the camera */
+  #prompt { position: fixed; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top) + 34px) 5vw 16px;
+    background: linear-gradient(var(--band) 78%, rgba(0,0,0,0)); text-align: center; }
+  #where { font-size: 3.3vw; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--soft); margin-bottom: 1.2vh; }
+  #text { font-size: var(--fs, 6.6vw); font-weight: 800; line-height: 1.22; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  #text b { color: var(--yel); font-weight: 900; }
+  #num { position: fixed; left: 4vw; top: calc(env(safe-area-inset-top) + 8px); font-size: 3.4vw; font-weight: 800; color: var(--soft); }
+  #timer { position: fixed; right: 4vw; top: calc(env(safe-area-inset-top) + 8px); font-size: 3.6vw; font-weight: 800; display: none; }
+  #timer.on { display: block; color: var(--red); }
+  #timer.on::before { content: "● "; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 5vw calc(env(safe-area-inset-bottom) + 18px);
+    background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.65) 35%); display: flex; align-items: center; justify-content: space-between; gap: 3vw; }
+  button { font: inherit; color: var(--ink); background: rgba(255,255,255,.16); border: 0; border-radius: 999px; padding: 12px 16px; font-weight: 800; font-size: 4vw; }
+  button:active { background: rgba(255,255,255,.3); }
+  #rec { width: 19vw; height: 19vw; max-width: 84px; max-height: 84px; border-radius: 50%; padding: 0; background: transparent; border: 5px solid #fff; display: grid; place-items: center; }
+  #rec span { width: 70%; height: 70%; border-radius: 50%; background: var(--red); transition: all .15s; }
+  #rec.on span { width: 42%; height: 42%; border-radius: 8px; }
+  #side { display: flex; gap: 2vw; }
+  #takes { position: fixed; left: 5vw; right: 5vw; bottom: calc(env(safe-area-inset-bottom) + 118px); display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .tk { font-size: 3.2vw; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; }
+  .tk.saved { color: var(--ok); }
+  #count { position: fixed; inset: 0; display: none; place-items: center; font-size: 34vw; font-weight: 900; color: #fff; text-shadow: 0 6px 30px rgba(0,0,0,.6); pointer-events: none; }
+  #start { position: fixed; inset: 0; display: grid; place-items: center; background: #0b0b0c; padding: 8vw; text-align: center; }
+  #start h1 { font-size: 7vw; margin: 0 0 3vh; }
+  #start p { color: var(--soft); font-size: 4vw; line-height: 1.45; margin: 0 0 2.4vh; }
+  #start button { background: #fff; color: #000; font-size: 5vw; padding: 16px 30px; margin-top: 2vh; }
+  #err { color: var(--yel); font-size: 4vw; margin-top: 2vh; }
+  #sheet { position: fixed; left: 0; right: 0; bottom: 0; background: #151517; border-radius: 22px 22px 0 0; padding: 20px 6vw calc(env(safe-area-inset-bottom) + 24px); display: none; }
+  #sheet.on { display: block; }
+  #sheet label { display: block; font-size: 3.8vw; font-weight: 700; color: var(--soft); margin: 14px 0 6px; }
+  #sheet select, #sheet input[type=range] { width: 100%; font-size: 4vw; padding: 10px; border-radius: 12px; border: 0; background: #2a2a2e; color: #fff; }
+  #sheet .row { display: flex; gap: 10px; margin-top: 18px; }
+  #sheet .row button { flex: 1; }
+  #info { font-size: 3.2vw; color: var(--soft); margin-top: 14px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<video id="cam" autoplay playsinline muted></video>
+
+<div id="prompt"><div id="where"></div><div id="text"></div></div>
+<div id="num"></div>
+<div id="timer">0:00</div>
+<div id="takes"></div>
+<div id="count"></div>
+
+<div id="bar">
+  <div id="side"><button id="prev" aria-label="Previous line">‹ Prev</button></div>
+  <button id="rec" aria-label="Record"><span></span></button>
+  <div id="side2" style="display:flex;gap:2vw"><button id="next" aria-label="Next line">Next ›</button><button id="gear" aria-label="Settings">⚙</button></div>
+</div>
+
+<div id="sheet">
+  <label for="mic">Microphone (plug in the DJI receiver first)</label>
+  <select id="mic"></select>
+  <label for="fs">Text size</label>
+  <input id="fs" type="range" min="4.6" max="9" step="0.2" value="6.6">
+  <label for="cd">Countdown before recording</label>
+  <select id="cd"><option value="3">3 seconds</option><option value="2">2 seconds</option><option value="0">None</option></select>
+  <div id="info"></div>
+  <div class="row"><button id="close">Done</button></div>
+</div>
+
+<div id="start">
+  <div>
+    <h1>Ep 7 · Selfie Prompter</h1>
+    <p>Your line sits right under the selfie camera. Tap the red button to record a take; it saves to Downloads when you stop.</p>
+    <p>Plug in the DJI mic receiver before you start.</p>
+    <button id="go">Start camera</button>
+    <div id="err"></div>
+  </div>
+</div>
+
+<script>
+// Ep 7 script. **word** = highlighted number. Edit here for future episodes.
+const EP = 'ep07';
+const LINES = [
+  { where: '1 · Metro platform · metro behind you', text: 'Pune Metro carries about **2 lakh** people a day. Mumbai’s local trains carry **67 lakh**, nearly **30 times** more, and that’s **1.7 times** every other city in India combined.' },
+  { where: '2 · Walking on the platform', text: 'I’m Raj, I’m building 30 things with Claude in 60 days, and for this one I mapped every suburban train network in India.' },
+  { where: '3 · Inside the metro, by the window', text: 'Kolkata comes second with **30 lakh** a day, and Chennai carries **eight and a half lakh**.' },
+  { where: '4 · Inside the metro', text: 'Zoom into Mumbai, and the Central line alone moves **39 lakh** people a day, more than Kolkata’s entire network.' },
+  { where: '5 · Inside the metro', text: 'Claude read the Railways’ own yearbook, pulled every zone’s numbers and turned them into this map.' },
+  { where: '6 · Inside the metro', text: 'Comment **LOCAL** to explore the map, and follow for the pothole tracker next.' },
+];
+const $ = id => document.getElementById(id);
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+let i = Math.min(+store.get(EP + '_line', 0) || 0, LINES.length - 1);
+let stream = null, rec = null, chunks = [], t0 = 0, tick = null, wake = null;
+const takes = JSON.parse(store.get(EP + '_takes', '{}'));   // line index -> take count (names only; videos go to Downloads)
+
+function esc(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function show() {
+  const L = LINES[i];
+  $('where').textContent = L.where;
+  $('text').innerHTML = esc(L.text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  $('num').textContent = `Line ${i + 1} / ${LINES.length}`;
+  const n = takes[i] || 0;
+  $('takes').innerHTML = n ? Array.from({ length: n }, (_, k) => `<span class="tk saved">take ${k + 1} ✓</span>`).join('') : '';
+  store.set(EP + '_line', i);
+}
+$('prev').onclick = () => { if (!rec) { i = (i + LINES.length - 1) % LINES.length; show(); } };
+$('next').onclick = () => { if (!rec) { i = (i + 1) % LINES.length; show(); } };
+$('fs').value = store.get(EP + '_fs', 6.6);
+const applyFs = () => { document.documentElement.style.setProperty('--fs', $('fs').value + 'vw'); store.set(EP + '_fs', $('fs').value); };
+$('fs').oninput = applyFs; applyFs();
+$('cd').value = store.get(EP + '_cd', '3'); $('cd').onchange = () => store.set(EP + '_cd', $('cd').value);
+$('gear').onclick = () => { if (!rec) $('sheet').classList.add('on'); };
+$('close').onclick = () => $('sheet').classList.remove('on');
+
+async function openCam(micId) {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+  if (micId) audio.deviceId = { exact: micId };
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 }, frameRate: { ideal: 30 } }, audio });
+  $('cam').srcObject = stream;
+  const v = stream.getVideoTracks()[0].getSettings(), a = stream.getAudioTracks()[0];
+  $('info').textContent = `Camera ${v.width}×${v.height} @ ${Math.round(v.frameRate || 30)} fps · mic: ${a ? a.label || 'default' : 'none'}`;
+}
+async function listMics() {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  const cur = stream && stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings().deviceId;
+  $('mic').innerHTML = devs.map((d, k) => `<option value="${d.deviceId}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || 'Microphone ' + (k + 1))}</option>`).join('');
+}
+$('mic').onchange = async () => { store.set(EP + '_mic', $('mic').value); try { await openCam($('mic').value); } catch (e) { $('info').textContent = 'Could not switch mic: ' + e.message; } };
+
+$('go').onclick = async () => {
+  if (!navigator.mediaDevices || !window.MediaRecorder) { $('err').textContent = 'This browser cannot record. Open the link in Chrome.'; return; }
+  try {
+    await openCam(store.get(EP + '_mic', ''));
+  } catch (e) {
+    try { await openCam(''); } catch (e2) { $('err').textContent = 'Camera or mic blocked: allow both in Chrome’s site settings, then try again.'; return; }
+  }
+  await listMics();
+  // prefer an external (USB / DJI) mic automatically the first time
+  if (!store.get(EP + '_mic', '')) {
+    const ext = [...$('mic').options].find(o => /usb|dji|wireless|mic/i.test(o.textContent) && !/default|built/i.test(o.textContent));
+    if (ext) { $('mic').value = ext.value; store.set(EP + '_mic', ext.value); try { await openCam(ext.value); } catch (e) {} }
+  }
+  $('start').style.display = 'none';
+  try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+};
+document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible' && stream) { try { wake = await navigator.wakeLock.request('screen'); } catch (e) {} } });
+
+function pickType() {
+  for (const t of ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'])
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  return '';
+}
+function save(blob, ext) {
+  const n = (takes[i] || 0) + 1; takes[i] = n; store.set(EP + '_takes', JSON.stringify(takes));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `${EP}_line${i + 1}_take${n}.${ext}`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  show();
+}
+async function countdown(n) {
+  const c = $('count');
+  for (let k = n; k > 0; k--) { c.textContent = k; c.style.display = 'grid'; await new Promise(r => setTimeout(r, 800)); }
+  c.style.display = 'none';
+}
+$('rec').onclick = async () => {
+  if (!stream) return;
+  if (rec) { rec.stop(); return; }
+  $('rec').disabled = true;
+  await countdown(+$('cd').value);
+  const type = pickType(), ext = type.includes('mp4') ? 'mp4' : 'webm';
+  chunks = [];
+  rec = new MediaRecorder(stream, { mimeType: type || undefined, videoBitsPerSecond: 14000000, audioBitsPerSecond: 192000 });
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    clearInterval(tick); $('timer').classList.remove('on'); $('rec').classList.remove('on');
+    save(new Blob(chunks, { type: rec.mimeType || type }), ext); rec = null; chunks = [];
+  };
+  rec.start(1000); t0 = Date.now(); $('rec').disabled = false; $('rec').classList.add('on'); $('timer').classList.add('on');
+  tick = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); $('timer').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 250);
+};
+window.addEventListener('beforeunload', e => { if (rec) { e.preventDefault(); e.returnValue = ''; } });
+show();
+</script>
+</body>
+</html>
